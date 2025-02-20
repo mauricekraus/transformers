@@ -27,7 +27,7 @@ from . import (
     bartpho,
     beit,
     bert,
-    bert_emotion,
+    bert_emotion_ordinal_regression,
     bert_generation,
     bert_japanese,
     bertweet,

@@ -212,9 +212,8 @@ _import_structure = {
         "BertTokenizer",
         "WordpieceTokenizer",
     ],
-    "models.bert_emotion": [
-        "BertForEmotionOrdinalRegressionConfig",
-        "BertForEmotionOrdinalRegression",
+    "models.bert_emotion_ordinal_regression": [
+        "BertForMultiOutputOrdinalRegressionConfig",
     ],
     "models.bert_generation": ["BertGenerationConfig"],
     "models.bert_japanese": [
@@ -1645,6 +1644,11 @@ else:
             "BertModel",
             "BertPreTrainedModel",
             "load_tf_weights_in_bert",
+        ]
+    )
+    _import_structure["models.bert_emotion_ordinal_regression"].extend(
+        [
+            "BertForMultiOutputOrdinalRegression"
         ]
     )
     _import_structure["models.bert_generation"].extend(
@@ -5310,6 +5314,7 @@ if TYPE_CHECKING:
         BertTokenizer,
         WordpieceTokenizer,
     )
+    from .models.bert_emotion_ordinal_regression import BertForMultiOutputOrdinalRegressionConfig
     from .models.bert_generation import BertGenerationConfig
     from .models.bert_japanese import (
         BertJapaneseTokenizer,
@@ -6768,6 +6773,7 @@ if TYPE_CHECKING:
             BertPreTrainedModel,
             load_tf_weights_in_bert,
         )
+        from .models.bert_emotion_ordinal_regression import BertForMultiOutputOrdinalRegression
         from .models.bert_generation import (
             BertGenerationDecoder,
             BertGenerationEncoder,
