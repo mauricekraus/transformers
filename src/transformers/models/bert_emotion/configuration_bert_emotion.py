@@ -67,7 +67,7 @@ DIMENSIONS_MAPPING = [
 
 
 
-class BertForEmotionOrdinalRegressionConfig(PretrainedConfig):
+class BertForMultiOutputOrdinalRegressionConfig(PretrainedConfig):
     
     model_type = "bert-emotion-ordinal-regression"
     def __init__(

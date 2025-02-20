@@ -5,7 +5,7 @@ from ..bert import (
     BertModel
 )
 from ...modeling_utils import PreTrainedModel
-from .configuration_bert_emotion import BertForEmotionOrdinalRegressionConfig
+from .configuration_bert_emotion import BertForMultiOutputOrdinalRegressionConfig
 
 from dataclasses import dataclass
 from typing import Optional
@@ -13,7 +13,7 @@ import torch
 from ...modeling_outputs import ModelOutput
 
 @dataclass
-class OrdinalRegressionOutput(ModelOutput):
+class BertForOrdinalRegressionOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     cat_loss: Optional[torch.FloatTensor] = None
     dim_loss: Optional[torch.FloatTensor] = None
@@ -64,7 +64,7 @@ class OrdinalHead(nn.Module):
         return logits, probabilities
 
 class BertForMultiOutputOrdinalRegression(PreTrainedModel):
-    def __init__(self, config: BertForEmotionOrdinalRegressionConfig):
+    def __init__(self, config: BertForMultiOutputOrdinalRegressionConfig):
         super().__init__(config)
         self.bert = BertModel(config.bert_config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -162,7 +162,7 @@ class BertForMultiOutputOrdinalRegression(PreTrainedModel):
             [self.predict_from_head(probs).unsqueeze(1) for probs in dim_probs_all], dim=1
         )
 
-        return OrdinalRegressionOutput(
+        return BertForOrdinalRegressionOutput(
             loss=loss,
             cat_loss=cat_loss,
             dim_loss=dim_loss,
