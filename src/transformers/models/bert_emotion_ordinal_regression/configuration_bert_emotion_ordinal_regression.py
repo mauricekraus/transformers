@@ -2,7 +2,7 @@ from ..bert import BertConfig
 from ...configuration_utils import PretrainedConfig
 
 
-CATEGORIES_MAPPING = [
+EMOTION_CATEGORIES_MAPPING = [
     ("Amusement", 0, 4),
     ("Elation", 0, 4),
     ("Pleasure/Ecstasy", 0, 4),
@@ -47,7 +47,7 @@ CATEGORIES_MAPPING = [
 
 # Mapping table for dimensions.
 # Each tuple is (key, min_value, max_value)
-DIMENSIONS_MAPPING = [
+EMOTION_DIMENSIONS_MAPPING = [
     ("Valence", -3.0, 3.0),  # Range: -3 to +3
     ("Arousal", 0.0, 4.0),  # Range: 0 to 4
     ("Submissive vs. Dominant", -3.0, 3.0),  # Range: -3 to +3
@@ -73,8 +73,8 @@ class BertForMultiOutputOrdinalRegressionConfig(PretrainedConfig):
     def __init__(
         self,
         bert_config: PretrainedConfig = None,
-        categories_mapping: list[tuple[str, float, float]] = CATEGORIES_MAPPING,
-        dimensions_mapping: list[tuple[str, float, float]] = DIMENSIONS_MAPPING,
+        categories_mapping: list[tuple[str, float, float]] = EMOTION_CATEGORIES_MAPPING,
+        dimensions_mapping: list[tuple[str, float, float]] = EMOTION_DIMENSIONS_MAPPING,
         hidden_dropout_prob: float = 0.1,
         **kwargs,
     ):
@@ -90,3 +90,9 @@ class BertForMultiOutputOrdinalRegressionConfig(PretrainedConfig):
         self.bert_config = bert_config
         self.hidden_dropout_prob = hidden_dropout_prob
 
+
+__all__ = [
+    "BertForMultiOutputOrdinalRegressionConfig",
+    "EMOTION_CATEGORIES_MAPPING",
+    "EMOTION_DIMENSIONS_MAPPING",
+]

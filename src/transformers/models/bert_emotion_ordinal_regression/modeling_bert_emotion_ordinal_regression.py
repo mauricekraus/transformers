@@ -196,3 +196,10 @@ class BertForMultiOutputOrdinalRegression(PreTrainedModel):
             )
             # Directly return the predictions from the model output.
             return {"categories": outputs.categories, "dimensions": outputs.dimensions}
+
+
+
+__all__ = [
+    "BertForMultiOutputOrdinalRegression",
+    "BertForOrdinalRegressionOutput",
+]
