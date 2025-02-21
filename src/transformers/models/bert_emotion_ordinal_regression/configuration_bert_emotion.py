@@ -72,13 +72,19 @@ class BertForMultiOutputOrdinalRegressionConfig(PretrainedConfig):
     model_type = "bert-emotion-ordinal-regression"
     def __init__(
         self,
-        bert_config: PretrainedConfig = BertConfig.from_pretrained("bert-base-uncased"),
+        bert_config: PretrainedConfig = None,
         categories_mapping: list[tuple[str, float, float]] = CATEGORIES_MAPPING,
         dimensions_mapping: list[tuple[str, float, float]] = DIMENSIONS_MAPPING,
         hidden_dropout_prob: float = 0.1,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        # If bert_config isn't provided, load the default from pretrained.
+        if bert_config is None:
+            bert_config = BertConfig.from_pretrained("bert-base-uncased")
+        # If bert_config is a dict (from deserialization), convert it.
+        elif isinstance(bert_config, dict):
+            bert_config = BertConfig.from_dict(bert_config)
         self.categories_mapping = categories_mapping
         self.dimensions_mapping = dimensions_mapping
         self.bert_config = bert_config
