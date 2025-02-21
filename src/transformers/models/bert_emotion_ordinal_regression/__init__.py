@@ -5,8 +5,8 @@ from ...utils.import_utils import define_import_structure
 
 
 if TYPE_CHECKING:
-    from .configuration_bert_emotion import *
-    from .modeling_bert_emotion import *
+    from .configuration_bert_emotion_ordinal_regression import *
+    from .modeling_bert_emotion_ordinal_regression import *
 else:
     import sys
 

@@ -5,7 +5,7 @@ from ..bert import (
     BertModel
 )
 from ...modeling_utils import PreTrainedModel
-from .configuration_bert_emotion import BertForMultiOutputOrdinalRegressionConfig
+from .configuration_bert_emotion_ordinal_regression import BertForMultiOutputOrdinalRegressionConfig
 
 from dataclasses import dataclass
 from typing import Optional

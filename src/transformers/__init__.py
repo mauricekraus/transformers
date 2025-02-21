@@ -212,9 +212,7 @@ _import_structure = {
         "BertTokenizer",
         "WordpieceTokenizer",
     ],
-    "models.bert_emotion_ordinal_regression": [
-        "BertForMultiOutputOrdinalRegressionConfig",
-    ],
+    "models.bert_emotion_ordinal_regression": [ "BertForMultiOutputOrdinalRegressionConfig" ],
     "models.bert_generation": ["BertGenerationConfig"],
     "models.bert_japanese": [
         "BertJapaneseTokenizer",
