@@ -259,6 +259,7 @@ class xLSTMMixerForRegressionOutput(ModelOutput):
 @dataclass
 class xLSTMMixerForPretrainingOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
+    prediction_outputs: Optional[torch.FloatTensor] = None
     reconstruction: Optional[torch.FloatTensor] = None
     last_hidden_state: Optional[torch.FloatTensor] = None
 
@@ -612,6 +613,7 @@ class xLSTMMixerForPretraining(xLSTMMixerPreTrainedModel):
         recon_norm = self.reconstruction_proj(features.transpose(1, 2)).transpose(1, 2)
         recon_denorm = self.model.encoder.revin(recon_norm, mode="denorm")
         reconstruction = recon_denorm * model_output.scale + model_output.loc
+        prediction_outputs = reconstruction
 
         loss = None
         if return_loss:
@@ -625,10 +627,13 @@ class xLSTMMixerForPretraining(xLSTMMixerPreTrainedModel):
             loss = (diff.sum(dim=(1, 2)) / denom).mean()
 
         if not return_dict:
-            return tuple(item for item in (loss, reconstruction, model_output.last_hidden_state) if item is not None)
+            return tuple(
+                item for item in (loss, prediction_outputs, model_output.last_hidden_state) if item is not None
+            )
 
         return xLSTMMixerForPretrainingOutput(
             loss=loss,
+            prediction_outputs=prediction_outputs,
             reconstruction=reconstruction,
             last_hidden_state=model_output.last_hidden_state,
         )
