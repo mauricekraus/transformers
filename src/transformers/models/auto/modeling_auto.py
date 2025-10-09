@@ -430,6 +430,7 @@ MODEL_MAPPING_NAMES = OrderedDict(
         ("xlm-roberta-xl", "XLMRobertaXLModel"),
         ("xlnet", "XLNetModel"),
         ("xlstm", "xLSTMModel"),
+        ("xlstm_mixer", "xLSTMMixerModel"),
         ("xmod", "XmodModel"),
         ("yolos", "YolosModel"),
         ("yoso", "YosoModel"),
@@ -1776,6 +1777,7 @@ MODEL_FOR_TIME_SERIES_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
     [
         ("patchtsmixer", "PatchTSMixerForTimeSeriesClassification"),
         ("patchtst", "PatchTSTForClassification"),
+        ("xlstm_mixer", "xLSTMMixerForTimeSeriesClassification"),
     ]
 )
 
@@ -1783,12 +1785,14 @@ MODEL_FOR_TIME_SERIES_REGRESSION_MAPPING_NAMES = OrderedDict(
     [
         ("patchtsmixer", "PatchTSMixerForRegression"),
         ("patchtst", "PatchTSTForRegression"),
+        ("xlstm_mixer", "xLSTMMixerForRegression"),
     ]
 )
 
 MODEL_FOR_TIME_SERIES_PREDICTION_MAPPING_NAMES = OrderedDict(
     [
         ("timesfm", "TimesFmModelForPrediction"),
+        ("xlstm_mixer", "xLSTMMixerForPrediction"),
     ]
 )
 
