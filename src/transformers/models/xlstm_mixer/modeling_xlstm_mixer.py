@@ -244,8 +244,15 @@ class xLSTMMixerForPredictionOutput(ModelOutput):
 class xLSTMMixerForTimeSeriesClassificationOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     logits: Optional[torch.FloatTensor] = None
+    prediction_outputs: Optional[torch.FloatTensor] = None
     pooled_hidden_state: Optional[torch.FloatTensor] = None
     last_hidden_state: Optional[torch.FloatTensor] = None
+
+    def __post_init__(self):
+        if self.prediction_outputs is None and self.logits is not None:
+            object.__setattr__(self, "prediction_outputs", self.logits)
+        elif self.logits is None and self.prediction_outputs is not None:
+            object.__setattr__(self, "logits", self.prediction_outputs)
 
 
 @dataclass
@@ -510,11 +517,40 @@ class xLSTMMixerForTimeSeriesClassification(xLSTMMixerPreTrainedModel):
     def forward(
         self,
         past_values: torch.Tensor,
+        target_values: Optional[torch.Tensor] = None,
         observed_mask: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
+        output_hidden_states: Optional[bool] = False,
+        return_loss: bool = True,
         return_dict: Optional[bool] = None,
     ) -> xLSTMMixerForTimeSeriesClassificationOutput:
+        r"""
+        Args:
+            past_values (`torch.FloatTensor` of shape `(batch_size, seq_length, num_input_channels)`):
+                Context values of the time series. These correspond to the inputs fed through the encoder backbone.
+            target_values (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
+                Class labels for the sequence. When provided and `return_loss=True`, a cross-entropy loss is returned.
+            observed_mask (`torch.FloatTensor` of shape `(batch_size, seq_length, num_input_channels)`, *optional*):
+                Optional binary mask indicating which entries in `past_values` were observed (`1.0`) versus missing
+                (`0.0`). Unused entries can be filled with zeros.
+            output_hidden_states (`bool`, *optional*, defaults to `False`):
+                Included for API compatibility with other time-series heads. Hidden states are not returned by the
+                current implementation.
+            return_loss (`bool`, *optional*, defaults to `True`):
+                Whether to return the loss value when `target_values` is provided.
+            return_dict (`bool`, *optional*):
+                Whether to return a [`~transformers.utils.ModelOutput`] instead of a plain tuple.
+        """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # Support legacy positional calls where the observed mask was passed as the second argument.
+        if (
+            target_values is not None
+            and observed_mask is None
+            and target_values.shape == past_values.shape
+            and target_values.dim() == past_values.dim()
+        ):
+            observed_mask = target_values
+            target_values = None
 
         model_output = self.model(
             past_values=past_values,
@@ -528,8 +564,8 @@ class xLSTMMixerForTimeSeriesClassification(xLSTMMixerPreTrainedModel):
         logits = self.classifier(pooled)
 
         loss = None
-        if labels is not None:
-            loss = F.cross_entropy(logits, labels, reduction="mean")
+        if target_values is not None and return_loss:
+            loss = F.cross_entropy(logits, target_values, reduction="mean")
 
         if not return_dict:
             return tuple(item for item in (loss, logits, pooled, model_output.last_hidden_state) if item is not None)
@@ -537,6 +573,7 @@ class xLSTMMixerForTimeSeriesClassification(xLSTMMixerPreTrainedModel):
         return xLSTMMixerForTimeSeriesClassificationOutput(
             loss=loss,
             logits=logits,
+            prediction_outputs=logits,
             pooled_hidden_state=pooled,
             last_hidden_state=model_output.last_hidden_state,
         )
@@ -554,11 +591,21 @@ class xLSTMMixerForRegression(xLSTMMixerPreTrainedModel):
     def forward(
         self,
         past_values: torch.Tensor,
-        observed_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
+        observed_mask: Optional[torch.Tensor] = None,
         return_dict: Optional[bool] = None,
     ) -> xLSTMMixerForRegressionOutput:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # Support legacy positional calls where the observed mask was passed as the second argument.
+        if (
+            labels is not None
+            and observed_mask is None
+            and labels.shape == past_values.shape
+            and labels.dim() == past_values.dim()
+        ):
+            observed_mask = labels
+            labels = None
 
         model_output = self.model(
             past_values=past_values,
