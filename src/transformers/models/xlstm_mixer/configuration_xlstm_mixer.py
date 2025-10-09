@@ -24,14 +24,14 @@
 
 from typing import Iterable, Optional
 
-from ...configuration_utils import PreTrainedConfig
+from ...configuration_utils import PretrainedConfig
 from ...utils import logging
 
 
 logger = logging.get_logger(__name__)
 
 
-class xLSTMMixerConfig(PreTrainedConfig):
+class xLSTMMixerConfig(PretrainedConfig):
     r"""
     This is the configuration class to store the configuration of a [`xLSTMMixerModel`]. It is used to instantiate an
     xLSTM-Mixer model according to the specified arguments, defining the model architecture.
