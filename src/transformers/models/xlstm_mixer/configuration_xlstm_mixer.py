@@ -145,3 +145,6 @@ class xLSTMMixerConfig(PretrainedConfig):
         self.decomposition_window = decomposition_window
         self.revin_affine = revin_affine
         self.init_std = init_std
+
+
+__all__ = ["xLSTMMixerConfig"]

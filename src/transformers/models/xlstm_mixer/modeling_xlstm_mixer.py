@@ -632,3 +632,13 @@ class xLSTMMixerForPretraining(xLSTMMixerPreTrainedModel):
             reconstruction=reconstruction,
             last_hidden_state=model_output.last_hidden_state,
         )
+
+
+__all__ = [
+    "xLSTMMixerPreTrainedModel",
+    "xLSTMMixerModel",
+    "xLSTMMixerForPretraining",
+    "xLSTMMixerForPrediction",
+    "xLSTMMixerForTimeSeriesClassification",
+    "xLSTMMixerForRegression",
+]
