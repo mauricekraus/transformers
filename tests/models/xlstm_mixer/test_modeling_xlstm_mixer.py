@@ -28,6 +28,8 @@ from transformers.utils import is_xlstm_available
 
 
 xlstm_deps_available = is_xlstm_available()
+if isinstance(xlstm_deps_available, tuple):
+    xlstm_deps_available = xlstm_deps_available[0]
 
 if xlstm_deps_available:
     import torch
@@ -50,7 +52,7 @@ if xlstm_deps_available:
 else:
 
     def _dummy_inputs(*args, **kwargs):  # pragma: no cover
-        raise unittest.SkipTest("xLSTMMixer optional dependencies are not available.")
+        raise unittest.SkipTest("xLSTM optional dependencies are not available.")
 
 
 @require_torch
