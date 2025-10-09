@@ -125,7 +125,7 @@ class xLSTMMixerConfig(PretrainedConfig):
         if classification_aggregation not in {"mean", "max", "last"}:
             raise ValueError("`classification_aggregation` must be one of {'mean', 'max', 'last'}.")
 
-        super().__init__(use_return_dict=use_return_dict, **kwargs)
+        super().__init__(return_dict=use_return_dict, **kwargs)
 
         self.context_length = context_length
         self.prediction_length = prediction_length
