@@ -296,14 +296,30 @@ class xLSTMMixerEncoder(nn.Module):
         self.config = config
 
         self.revin = RevIN(config.num_input_channels, affine=config.revin_affine)
-        self.decomposition = SeriesDecomposition(config.decomposition_window)
+        self.backcast = config.backcast
+        self.ensemble_size = config.ensemble_size
+        self.num_memory_tokens = config.num_memory_tokens
+        self.num_tokens_per_variate = config.num_tokens_per_variate
 
-        self.seasonal_mlp = nn.Linear(config.context_length, config.prediction_length)
-        self.trend_mlp = nn.Linear(config.context_length, config.prediction_length)
-        self.pre_encoding = nn.Linear(config.prediction_length, config.d_model)
+        self.hidden_dim = config.d_model
+        self.total_views = max(self.ensemble_size, 2 if self.backcast else 1)
+
+        self.num_series_tokens = config.num_input_channels * self.num_tokens_per_variate
+        self.token_embedding_dim = self.hidden_dim
+        self.view_embedding_dim = self.hidden_dim * self.total_views
+
+        if self.num_memory_tokens > 0:
+            self.memory_tokens = nn.Parameter(
+                torch.randn(self.num_memory_tokens, self.token_embedding_dim) * config.init_std
+            )
+        else:
+            self.memory_tokens = None
+
+        self.nlinear_projection = nn.Linear(config.context_length, config.prediction_length)
+        self.pre_encoding = nn.Linear(config.prediction_length, self.hidden_dim)
 
         slstm_layer = sLSTMLayerConfig(
-            embedding_dim=config.d_model,
+            embedding_dim=self.token_embedding_dim,
             num_heads=config.num_heads,
             conv1d_kernel_size=config.conv1d_kernel_size,
             backend="vanilla",
@@ -322,27 +338,78 @@ class xLSTMMixerEncoder(nn.Module):
             slstm_block=slstm_block,
             mlstm_block=None,
             num_blocks=config.num_layers,
-            embedding_dim=config.d_model,
-            context_length=config.num_input_channels,
+            embedding_dim=self.token_embedding_dim,
+            context_length=self.num_series_tokens + self.num_memory_tokens,
             dropout=config.dropout,
             bias=True,
         )
         self.xlstm = xLSTMBlockStack(stack_config)
         self.dropout = nn.Dropout(config.dropout)
-        self.feature_proj = nn.Linear(config.d_model, config.prediction_length)
+        self.projection = nn.Linear(self.view_embedding_dim, config.prediction_length)
 
-    def forward(self, past_values: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        seasonal_inputs, trend_inputs = self.decomposition(past_values)
-        seasonal = seasonal_inputs.transpose(1, 2)
-        trend = trend_inputs.transpose(1, 2)
-        seasonal = self.seasonal_mlp(seasonal)
-        trend = self.trend_mlp(trend)
-        tokens = seasonal + trend
-        tokens_encoded = self.pre_encoding(tokens)
-        hidden = self.dropout(self.xlstm(tokens_encoded))
-        projected = self.feature_proj(hidden)
-        predictions = projected.transpose(1, 2)
-        return hidden, predictions
+        self.output_tokens = config.num_input_channels
+        self.classifier_feature_dim = self.output_tokens * self.view_embedding_dim
+
+    def _prepare_tokens(self, inputs: torch.Tensor) -> torch.Tensor:
+        seq_last = inputs[:, -1:, :].detach()
+        residual = inputs - seq_last
+        projected = self.nlinear_projection(residual.transpose(1, 2)).transpose(1, 2)
+        tokens = projected + seq_last
+        tokens = tokens.transpose(1, 2)
+
+        if self.num_tokens_per_variate > 1:
+            tokens = tokens.repeat_interleave(self.num_tokens_per_variate, dim=1)
+
+        encoded = self.pre_encoding(tokens)
+        return encoded
+
+    def _prepend_memory(self, tokens: torch.Tensor) -> torch.Tensor:
+        if self.memory_tokens is None:
+            return tokens
+        mem = self.memory_tokens.unsqueeze(0).expand(tokens.size(0), -1, -1)
+        return torch.cat([mem, tokens], dim=1)
+
+    def _remove_memory(self, tokens: torch.Tensor) -> torch.Tensor:
+        if self.memory_tokens is None:
+            return tokens
+        return tokens[:, self.num_memory_tokens :, :]
+
+    def _generate_views(self, tokens: torch.Tensor) -> list[torch.Tensor]:
+        views: list[torch.Tensor] = [tokens]
+        if self.backcast:
+            views.append(torch.flip(tokens, dims=[1]))
+
+        base_indices = torch.arange(tokens.size(1), device=tokens.device)
+        while len(views) < self.total_views:
+            shift = len(views)  # deterministic shift based on current view count
+            permuted_indices = torch.roll(base_indices, shifts=shift, dims=0)
+            views.append(tokens[:, permuted_indices, :])
+        return views
+
+    def _run_view(self, tokens: torch.Tensor) -> torch.Tensor:
+        tokens = self._prepend_memory(tokens)
+        processed = self.xlstm(tokens)
+        processed = self.dropout(processed)
+        processed = self._remove_memory(processed)
+        return processed
+
+    def forward(self, inputs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        encoded_tokens = self._prepare_tokens(inputs)
+        views = self._generate_views(encoded_tokens)
+        processed_views = [self._run_view(view) for view in views]
+        combined = torch.cat(processed_views, dim=-1)
+
+        if self.num_tokens_per_variate > 1:
+            batch_size, total_tokens, combined_dim = combined.shape
+            combined = combined.view(
+                batch_size,
+                self.config.num_input_channels,
+                self.num_tokens_per_variate,
+                combined_dim,
+            ).mean(dim=2)
+
+        predictions = self.projection(combined).transpose(1, 2)
+        return combined, predictions
 
 
 class xLSTMMixerPreTrainedModel(PreTrainedModel):
@@ -362,6 +429,7 @@ class xLSTMMixerModel(xLSTMMixerPreTrainedModel):
         super().__init__(config)
         self.encoder = xLSTMMixerEncoder(config)
         self.scaling = config.scaling
+        self.classifier_feature_dim = self.encoder.classifier_feature_dim
 
         self.post_init()
 
@@ -509,8 +577,9 @@ class xLSTMMixerForTimeSeriesClassification(xLSTMMixerPreTrainedModel):
     def __init__(self, config: xLSTMMixerConfig) -> None:
         super().__init__(config)
         self.model = xLSTMMixerModel(config)
+        self.activation = nn.GELU()
         self.dropout = nn.Dropout(config.head_dropout)
-        self.classifier = nn.Linear(config.num_input_channels, config.num_labels)
+        self.classifier = nn.Linear(self.model.classifier_feature_dim, config.num_labels)
 
         self.post_init()
 
@@ -558,23 +627,23 @@ class xLSTMMixerForTimeSeriesClassification(xLSTMMixerPreTrainedModel):
             return_dict=True,
         )
 
-        features = model_output.prediction_features
-        pooled = aggregate_hidden_states(features, self.config.classification_aggregation)
-        pooled = self.dropout(pooled)
-        logits = self.classifier(pooled)
+        hidden = model_output.last_hidden_state
+        activated = self.activation(hidden)
+        flattened = self.dropout(activated).reshape(activated.size(0), -1)
+        logits = self.classifier(flattened)
 
         loss = None
         if target_values is not None and return_loss:
             loss = F.cross_entropy(logits, target_values, reduction="mean")
 
         if not return_dict:
-            return tuple(item for item in (loss, logits, pooled, model_output.last_hidden_state) if item is not None)
+            return tuple(item for item in (loss, logits, flattened, model_output.last_hidden_state) if item is not None)
 
         return xLSTMMixerForTimeSeriesClassificationOutput(
             loss=loss,
             logits=logits,
             prediction_outputs=logits,
-            pooled_hidden_state=pooled,
+            pooled_hidden_state=flattened,
             last_hidden_state=model_output.last_hidden_state,
         )
 
@@ -583,8 +652,9 @@ class xLSTMMixerForRegression(xLSTMMixerPreTrainedModel):
     def __init__(self, config: xLSTMMixerConfig) -> None:
         super().__init__(config)
         self.model = xLSTMMixerModel(config)
+        self.activation = nn.GELU()
         self.dropout = nn.Dropout(config.head_dropout)
-        self.regressor = nn.Linear(config.num_input_channels, config.num_targets)
+        self.regressor = nn.Linear(self.model.classifier_feature_dim, config.num_targets)
 
         self.post_init()
 
@@ -613,22 +683,22 @@ class xLSTMMixerForRegression(xLSTMMixerPreTrainedModel):
             return_dict=True,
         )
 
-        features = model_output.prediction_features
-        pooled = aggregate_hidden_states(features, self.config.classification_aggregation)
-        pooled = self.dropout(pooled)
-        preds = self.regressor(pooled)
+        hidden = model_output.last_hidden_state
+        activated = self.activation(hidden)
+        flattened = self.dropout(activated).reshape(activated.size(0), -1)
+        preds = self.regressor(flattened)
 
         loss = None
         if labels is not None:
             loss = F.mse_loss(preds, labels, reduction="mean")
 
         if not return_dict:
-            return tuple(item for item in (loss, preds, pooled, model_output.last_hidden_state) if item is not None)
+            return tuple(item for item in (loss, preds, flattened, model_output.last_hidden_state) if item is not None)
 
         return xLSTMMixerForRegressionOutput(
             loss=loss,
             prediction_outputs=preds,
-            pooled_hidden_state=pooled,
+            pooled_hidden_state=flattened,
             last_hidden_state=model_output.last_hidden_state,
         )
 

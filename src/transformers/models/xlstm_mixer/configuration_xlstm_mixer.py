@@ -79,6 +79,17 @@ class xLSTMMixerConfig(PretrainedConfig):
             Whether to enable affine parameters inside the RevIN normalisation layer.
         init_std (`float`, *optional*, defaults to 0.02):
             Standard deviation used to initialise linear layers.
+        backcast (`bool`, *optional*, defaults to `False`):
+            Whether to run the xLSTM stack on a time-reversed view of the inputs and concatenate the forward and
+            backward representations.
+        ensemble_size (`int`, *optional*, defaults to 1):
+            Number of deterministic variable permutations processed by the backbone. Values greater than 1 will create
+            additional shifted views of the inputs that are concatenated along the feature dimension.
+        num_memory_tokens (`int`, *optional*, defaults to 0):
+            Number of learned memory tokens prepended to each view before the xLSTM stack.
+        num_tokens_per_variate (`int`, *optional*, defaults to 1):
+            Number of learned tokens generated per input variate before packing. This allows exposing more than one
+            token per variate to the xLSTM stack.
         use_return_dict (`bool`, *optional*, defaults to `True`):
             Whether to return model outputs as a [`~transformers.utils.ModelOutput`] instead of a plain tuple.
     """
@@ -109,6 +120,10 @@ class xLSTMMixerConfig(PretrainedConfig):
         decomposition_window: int = 25,
         revin_affine: bool = False,
         init_std: float = 0.02,
+        backcast: bool = False,
+        ensemble_size: int = 1,
+        num_memory_tokens: int = 0,
+        num_tokens_per_variate: int = 1,
         use_return_dict: bool = True,
         **kwargs,
     ) -> None:
@@ -124,6 +139,12 @@ class xLSTMMixerConfig(PretrainedConfig):
             raise ValueError("`loss` must be one of {'mse', 'pinball'}.")
         if classification_aggregation not in {"mean", "max", "last"}:
             raise ValueError("`classification_aggregation` must be one of {'mean', 'max', 'last'}.")
+        if ensemble_size < 1:
+            raise ValueError("`ensemble_size` must be >= 1.")
+        if num_memory_tokens < 0:
+            raise ValueError("`num_memory_tokens` must be >= 0.")
+        if num_tokens_per_variate < 1:
+            raise ValueError("`num_tokens_per_variate` must be >= 1.")
 
         super().__init__(return_dict=use_return_dict, **kwargs)
 
@@ -145,6 +166,10 @@ class xLSTMMixerConfig(PretrainedConfig):
         self.decomposition_window = decomposition_window
         self.revin_affine = revin_affine
         self.init_std = init_std
+        self.backcast = backcast
+        self.ensemble_size = ensemble_size
+        self.num_memory_tokens = num_memory_tokens
+        self.num_tokens_per_variate = num_tokens_per_variate
 
 
 __all__ = ["xLSTMMixerConfig"]
